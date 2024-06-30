@@ -41,32 +41,19 @@ async function run() {
     //     const result = await mealsCollection.find().toArray();
     //   res.send(result)
     // })
-
-  //   app.get('/meals', async (req, res) => {
-  //     const page = parseInt(req.query.page) || 1; // Default to 1 if not provided
-  //     const limit = parseInt(req.query.limit) || 0; // Default to 10 if not provided
-  
-  //     const skip = (page - 1) * limit;
-  
-  //     try {
-  //         const result = await mealsCollection.find()
-  //             .skip(skip)
-  //             .limit(limit)
-  //             .toArray();
-  //         res.send(result);
-  //     } catch (error) {
-  //         res.status(500).send({ error: 'An error occurred while fetching meals' });
-  //     }
-  // });
-
+ 
 
 app.get('/meals', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 0; // 0 means no limit
+  const limit = parseInt(req.query.limit) || 0; 
   const skip = (page - 1) * limit;
 
+  const filter = req.query.filter
+  let query = {}
+  if(filter) query ={ category: filter}
+
   const result = limit > 0 
-    ? await mealsCollection.find().skip(skip).limit(limit).toArray()
+    ? await mealsCollection.find(query).skip(skip).limit(limit).toArray()
     : await mealsCollection.find().toArray();
 
   res.send(result);
