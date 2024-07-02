@@ -41,22 +41,45 @@ async function run() {
     //     const result = await mealsCollection.find().toArray();
     //   res.send(result)
     // })
- 
 
 app.get('/meals', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 0; 
   const skip = (page - 1) * limit;
 
-  const filter = req.query.filter
-  let query = {}
-  if(filter) query ={ category: filter}
+  const filter = req.query.filter;
+  const priceRange = req.query.priceRange;
+  let query = {};
+
+  if (filter) {
+    query.category = filter;
+  }
+
+  if (priceRange) {
+    const [min, max] = priceRange.split('-').map(Number);
+    query.price = { $gte: min, $lte: max };
+  }
 
   const result = limit > 0 
     ? await mealsCollection.find(query).skip(skip).limit(limit).toArray()
-    : await mealsCollection.find().toArray();
+    : await mealsCollection.find(query).toArray();
 
   res.send(result);
+});
+
+app.get("/mealsCount", async (req, res) => {
+  const filter = req.query.filter;
+  const priceRange = req.query.priceRange;
+  let query = {};
+  
+  if (filter) query = { category: filter };
+  if (priceRange) {
+    const [min, max] = priceRange.split('-').map(Number);
+    query.price = { $gte: min, $lte: max };
+  }
+
+  const count = await mealsCollection.countDocuments(query);
+  res.send({ count });
 });
 
     app.get('/meal/:id', async (req, res) => {
@@ -65,7 +88,6 @@ app.get('/meals', async (req, res) => {
       const result = await mealsCollection.findOne(query);
       res.send(result);
     })
-
 
 
     // await client.db("admin").command({ ping: 1 });
