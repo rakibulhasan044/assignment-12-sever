@@ -36,6 +36,7 @@ async function run() {
     await client.connect();
 
     const mealsCollection = client.db("uniBitesDB").collection('meals');
+    const usersCollection = client.db('uniBitesDB').collection('users');
 
     // app.get('/meals', async (req, res) => {
     //     const result = await mealsCollection.find().toArray();
@@ -89,6 +90,19 @@ app.get("/mealsCount", async (req, res) => {
       res.send(result);
     })
 
+    //save new user in db
+
+    app.post('/users', async (req, res) => {
+      const user = req.body;
+      const query = { email: user.email }
+      const isExist = await usersCollection.findOne(query)
+
+      if(isExist) {
+        return res.send({ message: 'user already exist', insertedId: null})
+      }
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    })
 
     // await client.db("admin").command({ ping: 1 });
     // console.log("Pinged your deployment. You successfully connected to MongoDB!");
