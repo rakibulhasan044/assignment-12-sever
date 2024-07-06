@@ -2,7 +2,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 require("dotenv").config();
-
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 6006;
 
@@ -35,12 +35,8 @@ async function run() {
 
     const mealsCollection = client.db("uniBitesDB").collection("meals");
     const usersCollection = client.db("uniBitesDB").collection("users");
-    const packageCollection = client.db("uniBitesDB").collection('package')
-
-    // app.get('/meals', async (req, res) => {
-    //     const result = await mealsCollection.find().toArray();
-    //   res.send(result)
-    // })
+    const packageCollection = client.db("uniBitesDB").collection("package");
+    const paymentCollection = client.db("uniBitesDB").collection('payment')
 
     app.get("/meals", async (req, res) => {
       const page = parseInt(req.query.page) || 1;
@@ -104,18 +100,36 @@ async function run() {
       res.send(result);
     });
 
+    //create-payment-intent
 
-    app.get('/package', async (req, res) => {
-        const result = await packageCollection.find().toArray();
-      res.send(result)
-    })
+    app.post("/create-payment-intent", async (req, res) => {
+      const price = req.body.price;
+      const priceInCent = parseFloat(price) * 100;
 
-    app.get('/package/:id', async (req, res) => {
+      if(!price || priceInCent < 1) return;
+      //generate client secret
+      const { client_secret } = await stripe.paymentIntents.create({
+        amount: priceInCent,
+        currency: "usd",
+        automatic_payment_methods: {
+          enabled: true,
+        },
+      });
+      //send client secret as response
+      res.send({clientSecret: client_secret })
+    });
+
+    app.get("/package", async (req, res) => {
+      const result = await packageCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.get("/package/:id", async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
       const result = await packageCollection.findOne(query);
       res.send(result);
-    })
+    });
 
     // await client.db("admin").command({ ping: 1 });
     // console.log("Pinged your deployment. You successfully connected to MongoDB!");
