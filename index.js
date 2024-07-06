@@ -36,7 +36,7 @@ async function run() {
     const mealsCollection = client.db("uniBitesDB").collection("meals");
     const usersCollection = client.db("uniBitesDB").collection("users");
     const packageCollection = client.db("uniBitesDB").collection("package");
-    const paymentCollection = client.db("uniBitesDB").collection('payment')
+    const paymentsCollection = client.db("uniBitesDB").collection('payments');
 
     app.get("/meals", async (req, res) => {
       const page = parseInt(req.query.page) || 1;
@@ -119,6 +119,12 @@ async function run() {
       res.send({clientSecret: client_secret })
     });
 
+    //save payment in db
+    app.post("/payments", async (req, res) => {
+      const paymentInfo = req.body;
+      const result = await paymentsCollection.insertOne(paymentInfo);
+      res.send(result);
+    })
     app.get("/package", async (req, res) => {
       const result = await packageCollection.find().toArray();
       res.send(result);
