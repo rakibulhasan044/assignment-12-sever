@@ -39,7 +39,7 @@ async function run() {
     const packageCollection = client.db("uniBitesDB").collection("package");
     const paymentsCollection = client.db("uniBitesDB").collection('payments');
 
-    
+
     //middlewares
     const verifyToken = (req, res, next) => {
       if(!req.headers.authorization) {
@@ -62,6 +62,23 @@ async function run() {
         expiresIn: '1hr'
       })
       res.send({token});
+    })
+
+    //admin verification api
+
+    app.get('/user/admin/:email',verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if(email !== req.decoded.email) {
+        return res.status(403).send({message: 'unauthorized access'})
+      }
+      const query = { email: email};
+      const user = await usersCollection.findOne(query)
+      let admin = false;
+      if(user) {
+        admin = user?.role === 'admin';
+      }
+      res.send({admin})
+
     })
 
     app.get("/meals", async (req, res) => {
