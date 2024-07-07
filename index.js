@@ -38,21 +38,38 @@ async function run() {
     const usersCollection = client.db("uniBitesDB").collection("users");
     const packageCollection = client.db("uniBitesDB").collection("package");
     const paymentsCollection = client.db("uniBitesDB").collection('payments');
+    console.log(process.env.ACCESS_TOKEN_SECRET);
 
 
     //middlewares
     const verifyToken = (req, res, next) => {
-      if(!req.headers.authorization) {
-        return res.status(401).send({message: 'unauthorized access'})
+      //console.log('inside verify token', req.headers.authorization);
+       if(!req.headers.authorization) {
+        //  console.log(req.headers.authorization);
+        //  console.log('1ar');
+         return res.status(401).send({ message: 'unauthorized access'})
+       }
+       const token = req.headers.authorization.split(' ')[1];
+       jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+         if(err) {
+           console.log('2nd');
+           console.log('server', err);
+           return res.status(401).send({ message: 'unauthorized access'})
+         }
+         req.decoded = decoded;
+         next();
+       })
+     }
+
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const isAdmin = user?.role === 'admin';
+      if(!isAdmin) {
+        return res.status(403).send({ message: 'forbidden access '});
       }
-      const token = req.headers.authorization.split(' ')[1];
-      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if(err) {
-          return res.status(401).send({ message: 'unauthorized access'})
-        }
-        req.decoded = decoded;
-        next();
-      })
+      next();
     }
 
     //jwt related api
@@ -143,9 +160,23 @@ async function run() {
       res.send(result);
     });
 
+    //user rpackage update
+    app.patch('/user/package/:email',verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const subscription = req.body.package;
+      const query = { email: email };
+      const updateDoc = {
+        $set: {
+          package: subscription
+        }
+      }
+      const result = await usersCollection.updateOne(query, updateDoc)
+      res.send(result)
+    })
+
     //create-payment-intent
 
-    app.post("/create-payment-intent", async (req, res) => {
+    app.post("/create-payment-intent",verifyToken, async (req, res) => {
       const price = req.body.price;
       const priceInCent = parseFloat(price) * 100;
 
@@ -163,11 +194,12 @@ async function run() {
     });
 
     //save payment in db
-    app.post("/payments", async (req, res) => {
+    app.post("/payments", verifyToken, async (req, res) => {
       const paymentInfo = req.body;
       const result = await paymentsCollection.insertOne(paymentInfo);
       res.send(result);
     })
+
     app.get("/package", async (req, res) => {
       const result = await packageCollection.find().toArray();
       res.send(result);
