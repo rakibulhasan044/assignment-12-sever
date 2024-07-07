@@ -162,14 +162,16 @@ async function run() {
     });
 
     //loaduserinfo from db
-
-    app.get('/user/:email', async (req, res) => {
+    app.get('/user/:email', verifyToken, async (req, res) => {
       const email = req.params.email;
       const query = { email: email};
+
+      if(email !== req.decoded.email) {
+        return res.status(403).send({ message: 'forbidden access' });
+      }
       const result = await usersCollection.findOne(query);
       res.send(result);
     })
-
 
     //user rpackage update
     app.patch("/user/package/:email", verifyToken, async (req, res) => {
@@ -235,25 +237,23 @@ async function run() {
       const mealId = req.params.mealId;
       const query = { _id: new ObjectId(mealId)}
       const email = req.body.email;
-      if(email === req.decoded.email) {
-        try {
-          const alreadyLiked = await likesCollection.findOne({mealId, email});
-  
-          if(alreadyLiked) {
-            return res.send({message: 'already liked'})
-          }
-          
-          await likesCollection.insertOne({email, mealId});
-          const result = await mealsCollection.updateOne(query, {
-            $inc: {
-              likes: 1
-            }
-          })
-          res.status(200).json({ message: 'Liked successfully', result });
-          
-        } catch (err) {
-          res.status(500).json({ error: err.message });
+      try {
+        const alreadyLiked = await likesCollection.findOne({mealId, email});
+
+        if(alreadyLiked) {
+          return res.send({message: 'already liked'})
         }
+        
+        await likesCollection.insertOne({email, mealId});
+        const result = await mealsCollection.updateOne(query, {
+          $inc: {
+            likes: 1
+          }
+        })
+        res.status(200).json({ message: 'Liked successfully', result });
+        
+      } catch (err) {
+        res.status(500).json({ error: err.message });
       }
     })
 
@@ -286,19 +286,16 @@ async function run() {
     //check if user has liked a meal
     app.get('/liked/:mealId', verifyToken, async (req, res) => {
       const mealId = req.params.mealId;
-      const email = req.body.email;
-
-      if(email === req.decoded.email) {
-        try {
-          const liked = await likesCollection.findOne({ email, mealId });
+      const email = req.query.email;
+  
+      try {
+        const liked = await likesCollection.findOne({ email, mealId });
   
         res.status(200).json({ liked: !!liked });
-        } catch (err) {
-          res.status(500).json({ error: err.message });
-        }
+      } catch (err) {
+        res.status(500).json({ error: err.message });
       }
-
-    })
+    });
 
     // await client.db("admin").command({ ping: 1 });
     // console.log("Pinged your deployment. You successfully connected to MongoDB!");
