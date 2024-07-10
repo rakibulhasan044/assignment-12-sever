@@ -148,7 +148,7 @@ async function run() {
     });
 
     //adding new meals
-    app.post('/meal',verifyToken, async (req, res) => {
+    app.post('/meal',verifyToken, verifyAdmin, async (req, res) => {
       const mealInfo = req.body;
       const result = await mealsCollection.insertOne(mealInfo);
       res.send(result);
@@ -178,7 +178,24 @@ async function run() {
       const result = await usersCollection.findOne(query);
       res.send(result);
     })
+    //get all user
+    app.get('/users', verifyToken, verifyAdmin, async (req,res) => {
+      const result = await usersCollection.find().toArray()
+      res.send(result)
+    })
 
+    //make admin api
+    app.patch('/user/admin/:id',verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id)};
+      const updateDoc = {
+        $set: {
+          role: 'admin',
+        }
+      }
+      const result = await usersCollection.updateOne(filter, updateDoc)
+      res.send(result)
+    })
     //user rpackage update
     app.patch("/user/package/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
