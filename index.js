@@ -217,6 +217,13 @@ async function run() {
       res.send(result)
     })
 
+    //get all requested meal
+
+    app.get('/requested-meal',verifyToken, verifyAdmin, async(req, res) => {
+      const result = await requestedMealsCollection.find().toArray()
+      res.send(result)
+    })
+
     //getting all the requested meal by single user
     app.get('/requested-meal/:email', verifyToken, async (req, res) => {
       const email = req.params.email
@@ -225,6 +232,19 @@ async function run() {
       }
       const query = {userEmail: email};
       const result = await requestedMealsCollection.find(query).toArray()
+      res.send(result)
+    })
+
+    //update status
+    app.patch('/requested-meal/:id', verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id)};
+      const updateDoc = {
+        $set : {
+          status: 'Delivered'
+        }
+      }
+      const result = await requestedMealsCollection.updateOne(query, updateDoc);
       res.send(result)
     })
 
