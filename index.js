@@ -194,6 +194,25 @@ async function run() {
       res.send(result)
     })
 
+    //getting all the requested meal by single user
+    app.get('/requested-meal/:email', verifyToken, async (req, res) => {
+      const email = req.params.email
+      if(email !== req.decoded.email) {
+        return res.status(403).send({message: 'forbidden access'})
+      }
+      const query = {userEmail: email};
+      const result = await requestedMealsCollection.find(query).toArray()
+      res.send(result)
+    })
+
+
+    app.delete('/requested-meal/:id', verifyToken, async(req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id)};
+      const result = await requestedMealsCollection.deleteOne(query);
+      res.send(result)
+    })
+
     //create-payment-intent
     app.post("/create-payment-intent", verifyToken, async (req, res) => {
       const price = req.body.price;
@@ -218,6 +237,17 @@ async function run() {
       const result = await paymentsCollection.insertOne(paymentInfo);
       res.send(result);
     });
+
+    //get payments for single user
+    app.get('/my-payments/:email', verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      if(email !== req.decoded.email) {
+        return res.status(403).send({message: "forbiden access"})
+      }
+      const result = await paymentsCollection.find(query).toArray()
+      res.send(result);
+    })
 
     app.get("/package", async (req, res) => {
       const result = await packageCollection.find().toArray();
