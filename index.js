@@ -82,7 +82,6 @@ async function run() {
       res.send({ token });
     });
 
-    //
     
 
     //admin verification api
@@ -147,6 +146,13 @@ async function run() {
       const result = await mealsCollection.findOne(query);
       res.send(result);
     });
+
+    //adding new meals
+    app.post('/meal',verifyToken, async (req, res) => {
+      const mealInfo = req.body;
+      const result = await mealsCollection.insertOne(mealInfo);
+      res.send(result);
+    })
 
     //save new user in db
     app.post("/users", async (req, res) => {
