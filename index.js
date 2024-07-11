@@ -38,9 +38,11 @@ async function run() {
     const usersCollection = client.db("uniBitesDB").collection("users");
     const packageCollection = client.db("uniBitesDB").collection("package");
     const paymentsCollection = client.db("uniBitesDB").collection("payments");
-    const requestedMealsCollection = client.db('uniBitesDB').collection('requestedMeals')
-    const likesCollection = client.db('uniBitesDB').collection('likes')
-  
+    const requestedMealsCollection = client
+      .db("uniBitesDB")
+      .collection("requestedMeals");
+    const likesCollection = client.db("uniBitesDB").collection("likes");
+    const reviewsCollection = client.db("uniBitesDB").collection("reviews");
 
     //middlewares
     const verifyToken = (req, res, next) => {
@@ -81,8 +83,6 @@ async function run() {
       });
       res.send({ token });
     });
-
-    
 
     //admin verification api
     app.get("/user/admin/:email", verifyToken, async (req, res) => {
@@ -148,11 +148,11 @@ async function run() {
     });
 
     //adding new meals
-    app.post('/meal',verifyToken, verifyAdmin, async (req, res) => {
+    app.post("/meal", verifyToken, verifyAdmin, async (req, res) => {
       const mealInfo = req.body;
       const result = await mealsCollection.insertOne(mealInfo);
       res.send(result);
-    })
+    });
 
     //save new user in db
     app.post("/users", async (req, res) => {
@@ -168,34 +168,34 @@ async function run() {
     });
 
     //loaduserinfo from db
-    app.get('/user/:email', verifyToken, async (req, res) => {
+    app.get("/user/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      const query = { email: email};
+      const query = { email: email };
 
-      if(email !== req.decoded.email) {
-        return res.status(403).send({ message: 'forbidden access' });
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
       }
       const result = await usersCollection.findOne(query);
       res.send(result);
-    })
+    });
     //get all user
-    app.get('/users', verifyToken, verifyAdmin, async (req,res) => {
-      const result = await usersCollection.find().toArray()
-      res.send(result)
-    })
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
 
     //make admin api
-    app.patch('/user/admin/:id',verifyToken, verifyAdmin, async (req, res) => {
+    app.patch("/user/admin/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
-      const filter = { _id: new ObjectId(id)};
+      const filter = { _id: new ObjectId(id) };
       const updateDoc = {
         $set: {
-          role: 'admin',
-        }
-      }
-      const result = await usersCollection.updateOne(filter, updateDoc)
-      res.send(result)
-    })
+          role: "admin",
+        },
+      };
+      const result = await usersCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
     //user rpackage update
     app.patch("/user/package/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
@@ -211,50 +211,57 @@ async function run() {
     });
 
     //saving requested meal in db
-    app.post('/requested-meal', async (req, res) => {
+    app.post("/requested-meal", async (req, res) => {
       const requestMealInfo = req.body;
       const result = await requestedMealsCollection.insertOne(requestMealInfo);
-      res.send(result)
-    })
+      res.send(result);
+    });
 
     //get all requested meal
 
-    app.get('/requested-meal',verifyToken, verifyAdmin, async(req, res) => {
-      const result = await requestedMealsCollection.find().toArray()
-      res.send(result)
-    })
+    app.get("/requested-meal", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await requestedMealsCollection.find().toArray();
+      res.send(result);
+    });
 
     //getting all the requested meal by single user
-    app.get('/requested-meal/:email', verifyToken, async (req, res) => {
-      const email = req.params.email
-      if(email !== req.decoded.email) {
-        return res.status(403).send({message: 'forbidden access'})
+    app.get("/requested-meal/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
       }
-      const query = {userEmail: email};
-      const result = await requestedMealsCollection.find(query).toArray()
-      res.send(result)
-    })
+      const query = { userEmail: email };
+      const result = await requestedMealsCollection.find(query).toArray();
+      res.send(result);
+    });
 
     //update status
-    app.patch('/requested-meal/:id', verifyToken, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id)};
-      const updateDoc = {
-        $set : {
-          status: 'Delivered'
-        }
+    app.patch(
+      "/requested-meal/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            status: "Delivered",
+          },
+        };
+        const result = await requestedMealsCollection.updateOne(
+          query,
+          updateDoc
+        );
+        res.send(result);
       }
-      const result = await requestedMealsCollection.updateOne(query, updateDoc);
-      res.send(result)
-    })
+    );
 
-
-    app.delete('/requested-meal/:id', verifyToken, async(req, res) => {
+    app.delete("/requested-meal/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
       const result = await requestedMealsCollection.deleteOne(query);
-      res.send(result)
-    })
+      res.send(result);
+    });
 
     //create-payment-intent
     app.post("/create-payment-intent", verifyToken, async (req, res) => {
@@ -282,15 +289,15 @@ async function run() {
     });
 
     //get payments for single user
-    app.get('/my-payments/:email', verifyToken, async (req, res) => {
+    app.get("/my-payments/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
-      if(email !== req.decoded.email) {
-        return res.status(403).send({message: "forbiden access"})
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbiden access" });
       }
-      const result = await paymentsCollection.find(query).toArray()
+      const result = await paymentsCollection.find(query).toArray();
       res.send(result);
-    })
+    });
 
     app.get("/package", async (req, res) => {
       const result = await packageCollection.find().toArray();
@@ -304,70 +311,148 @@ async function run() {
       res.send(result);
     });
 
-
     //like increase api
-    app.post('/like/:mealId', verifyToken, async (req, res) => {
+    app.post("/like/:mealId", verifyToken, async (req, res) => {
       const mealId = req.params.mealId;
-      const query = { _id: new ObjectId(mealId)}
+      const query = { _id: new ObjectId(mealId) };
       const email = req.body.email;
       try {
-        const alreadyLiked = await likesCollection.findOne({mealId, email});
+        const alreadyLiked = await likesCollection.findOne({ mealId, email });
 
-        if(alreadyLiked) {
-          return res.send({message: 'already liked'})
+        if (alreadyLiked) {
+          return res.send({ message: "already liked" });
         }
-        
-        await likesCollection.insertOne({email, mealId});
+
+        await likesCollection.insertOne({ email, mealId });
         const result = await mealsCollection.updateOne(query, {
           $inc: {
-            likes: 1
-          }
-        })
-        res.status(200).json({ message: 'Liked successfully', result });
-        
+            likes: 1,
+          },
+        });
+        res.status(200).json({ message: "Liked successfully", result });
       } catch (err) {
         res.status(500).json({ error: err.message });
       }
-    })
+    });
 
     //undo like
-    app.post('/unlike/:mealId', verifyToken, async (req, res) => {
+    app.post("/unlike/:mealId", verifyToken, async (req, res) => {
       const mealId = req.params.mealId;
-      const query = { _id: new ObjectId(mealId)}
+      const query = { _id: new ObjectId(mealId) };
       const email = req.body.email;
       const decodeEmail = req.decoded.email;
-      if(email === decodeEmail) {
+      if (email === decodeEmail) {
         try {
-          const liked = await likesCollection.findOne({ email, mealId})
-          if(!liked) return
-  
-          await likesCollection.deleteOne({email, mealId});
+          const liked = await likesCollection.findOne({ email, mealId });
+          if (!liked) return;
+
+          await likesCollection.deleteOne({ email, mealId });
           const result = await mealsCollection.updateOne(query, {
             $inc: {
-              likes: -1
-            }
-          })
-          res.send(result)
-  
+              likes: -1,
+            },
+          });
+          res.send(result);
         } catch (error) {
           console.log(error);
-          res.send(error)
+          res.send(error);
         }
       }
-    })
+    });
 
     //check if user has liked a meal
-    app.get('/liked/:mealId', verifyToken, async (req, res) => {
+    app.get("/liked/:mealId", verifyToken, async (req, res) => {
       const mealId = req.params.mealId;
       const email = req.query.email;
-  
+
       try {
         const liked = await likesCollection.findOne({ email, mealId });
-  
+
         res.status(200).json({ liked: !!liked });
       } catch (err) {
         res.status(500).json({ error: err.message });
       }
+    });
+
+    ///review add api with upda
+    app.post("/review", verifyToken, async (req, res) => {
+      const reviewInfo = req.body;
+      const mealId = new ObjectId(req.body.mealId);
+
+      try {
+        const meal = await mealsCollection.findOne({ _id: mealId });
+        if (!meal) {
+          return res.status(404).send({ message: "Meal not found" });
+        }
+
+        let newRating;
+        if (meal.reviews_count === 0) {
+          newRating = req.body.rating;
+        } else {
+          const totalRating =
+            meal.rating * meal.reviews_count + req.body.rating;
+          newRating = totalRating / (meal.reviews_count + 1);
+        }
+
+        const updateDoc = {
+          $inc: { reviews_count: 1 },
+          $set: {
+            rating: newRating,
+          },
+        };
+        await mealsCollection.updateOne({ _id: mealId }, updateDoc);
+
+        const result = await reviewsCollection.insertOne(reviewInfo);
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "An error occurred while submitting the review" });
+      }
+    });
+
+    app.put("/review/:mealId", verifyToken, async (req, res) => {
+      const mealId = req.params.mealId;
+      const query = { _id: new ObjectId(mealId) };
+
+      const meal = await mealsCollection.findOne(query);
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: {
+          reviews_count: meal.reviews_count,
+          likes: meal.likes,
+        },
+      };
+      const result = await reviewsCollection.updateMany(
+        { mealId: mealId },
+        updateDoc,
+        options
+      );
+      res.send(result);
+    });
+
+    //get review by meal id
+    app.get("/reviews/:mealId", verifyToken, async (req, res) => {
+      const mealId = req.params.mealId;
+      const query = { mealId: mealId };
+      const result = await reviewsCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    app.get("/review/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status.send({ message: "forbidden access" });
+      }
+      const query = { email: email };
+      const result = await reviewsCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    app.delete("/review/:id", verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await reviewsCollection.deleteOne(query);
+      res.send(result);
     });
 
     // await client.db("admin").command({ ping: 1 });
