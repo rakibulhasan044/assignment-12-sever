@@ -38,18 +38,15 @@ async function run() {
     const usersCollection = client.db("uniBitesDB").collection("users");
     const packageCollection = client.db("uniBitesDB").collection("package");
     const paymentsCollection = client.db("uniBitesDB").collection("payments");
-    const requestedMealsCollection = client
-      .db("uniBitesDB")
-      .collection("requestedMeals");
+    const requestedMealsCollection = client.db("uniBitesDB").collection("requestedMeals");
     const likesCollection = client.db("uniBitesDB").collection("likes");
     const reviewsCollection = client.db("uniBitesDB").collection("reviews");
+    const upcomingMealsCollection = client.db("uniBitesDB").collection("upcomingMeals");
+   
 
     //middlewares
     const verifyToken = (req, res, next) => {
-      //console.log('inside verify token', req.headers.authorization);
       if (!req.headers.authorization) {
-        //  console.log(req.headers.authorization);
-        //  console.log('1ar');
         return res.status(401).send({ message: "unauthorized access" });
       }
       const token = req.headers.authorization.split(" ")[1];
@@ -143,16 +140,76 @@ async function run() {
     app.get("/meal/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
-      const result = await mealsCollection.findOne(query);
+      const result = await mealsCollection.findOne(query) || await upcomingMealsCollection.findOne(query)
       res.send(result);
     });
+
+    //updating meal
+    app.patch('/meal/:id', verifyToken, verifyAdmin, async(req, res) => {
+      const id = req.params.id;
+      const info = req.body;
+      const query = { _id: new ObjectId(id)}
+      const updateDoc = {
+        $set: {
+          ...info
+        }
+      }
+      const result = await mealsCollection.updateOne(query, updateDoc)
+      res.send(result)
+    })
 
     //adding new meals
     app.post("/meal", verifyToken, verifyAdmin, async (req, res) => {
       const mealInfo = req.body;
-      const result = await mealsCollection.insertOne(mealInfo);
+      let result;
+      if(mealInfo.category === 'upcoming'){
+         result = await upcomingMealsCollection.insertOne(mealInfo);
+      }
+      else {
+         result = await mealsCollection.insertOne(mealInfo);
+      }
       res.send(result);
     });
+
+    //delete meal
+    app.delete('/meal/:id', verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id)}
+      const result = await mealsCollection.deleteOne(query)
+      res.send(result)
+    })
+
+    //get all upcoming meals
+    app.get('/upcoming-meals', async (req, res) => {
+      const result = await upcomingMealsCollection.find().sort({ likes: - 1}).toArray();
+      res.send(result)
+    })
+
+    app.patch('/upcoming-meal/:id',verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const newCategory = req.body.category
+      const query = { _id: new ObjectId(id)}
+
+      const updateDoc = {
+        $set: {
+          category: newCategory
+        }
+      }
+
+      const result = await upcomingMealsCollection.updateOne(query, updateDoc);
+
+      if(result.modifiedCount === 1) {
+        const updateDoc = await upcomingMealsCollection.findOne(query)
+        const { _id, ...docWithoutId } = updateDoc;
+        const insertDoc = await mealsCollection.insertOne(docWithoutId)
+
+        if(insertDoc.insertedId) {
+          const deleteDoc = await upcomingMealsCollection.deleteOne(query);
+          return res.send({message: "meal moved", result})
+        }
+      }
+      res.send({message: 'something wrong'})
+    })
 
     //save new user in db
     app.post("/users", async (req, res) => {
@@ -324,11 +381,24 @@ async function run() {
         }
 
         await likesCollection.insertOne({ email, mealId });
-        const result = await mealsCollection.updateOne(query, {
-          $inc: {
-            likes: 1,
-          },
-        });
+
+        const meal = await mealsCollection.findOne(query) || await upcomingMealsCollection.findOne(query)
+        let result;
+        if(meal.category === 'upcoming') {
+          result = await upcomingMealsCollection.updateOne(query, {
+            $inc: {
+              likes: 1,
+            },
+          });
+        }
+        else {
+          result = await mealsCollection.updateOne(query, {
+            $inc: {
+              likes: 1,
+            },
+          });
+        }
+        
         res.status(200).json({ message: "Liked successfully", result });
       } catch (err) {
         res.status(500).json({ error: err.message });
@@ -347,11 +417,24 @@ async function run() {
           if (!liked) return;
 
           await likesCollection.deleteOne({ email, mealId });
-          const result = await mealsCollection.updateOne(query, {
-            $inc: {
-              likes: -1,
-            },
-          });
+
+          const meal = await mealsCollection.findOne(query) || await upcomingMealsCollection.findOne(query)
+          let result;
+
+          if(meal.category === 'upcoming') {
+            result = await upcomingMealsCollection.updateOne(query, {
+              $inc: {
+                likes: -1,
+              },
+            });
+          }
+          else {
+            result = await mealsCollection.updateOne(query, {
+              $inc: {
+                likes: -1,
+              },
+            });
+          }
           res.send(result);
         } catch (error) {
           console.log(error);
@@ -438,6 +521,14 @@ async function run() {
       res.send(result);
     });
 
+    //get single review
+    app.get('/single-review/:id', verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id)}
+      const result = await reviewsCollection.findOne(query)
+      res.send(result);
+    })
+
     app.get("/review/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
@@ -448,10 +539,48 @@ async function run() {
       res.send(result);
     });
 
+    //updated review
+    app.patch('/single-review/:id', verifyToken, async(req, res) => {
+      const newText = req.body.newText;
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id)};
+      const updateDoc = {
+        $set: {
+          text: newText,
+        }
+      }
+      const result = await reviewsCollection.updateOne(query, updateDoc);
+      res.send(result)
+    })
+
+    //all review
+    app.get(`/all-reviews`, verifyToken, verifyAdmin, async (req, res) => {
+      const result = await reviewsCollection.find().toArray();
+      res.send(result)
+    })
+
     app.delete("/review/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
+      const query = { _id: new ObjectId(id)};
+      const review = await reviewsCollection.findOne(query)
+      
+      if(!review) {
+        return res.status(404).send({message: 'review not found'})
+      }
       const result = await reviewsCollection.deleteOne(query);
+      const mealId = review.mealId
+
+      if(result.deletedCount === 1) {
+        const updateDoc = {
+          $inc: {
+            reviews_count: -1,
+          }
+        }
+
+        const reviewUpdate = await reviewsCollection.updateMany({mealId: mealId},updateDoc )
+        const mealUpdate = await mealsCollection.updateOne({_id: new ObjectId(mealId)},updateDoc )
+      }
+      
       res.send(result);
     });
 
