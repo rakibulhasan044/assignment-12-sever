@@ -1,23 +1,33 @@
 const express = require("express");
-const app = express();
+
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
-require("dotenv").config();
+const cookieParser = require('cookie-parser');
+
+
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+require("dotenv").config();
 const port = process.env.PORT || 6006;
+
+
+const app = express();
 
 const corsOption = {
   origin: [
     "http://localhost:5173",
     "http://localhost:5174",
     "https://assignment-20dc7.web.app",
+    "https://assignment-20dc7.firebaseapp.com"
   ],
   credentials: true,
 };
 
-app.use(cors(corsOption));
 app.use(express.json());
+app.use(cors(corsOption));
+app.use(cookieParser())
+
+// app.use(cookieParser())
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.erh7g8c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -29,10 +39,37 @@ const client = new MongoClient(uri, {
   },
 });
 
+
+const verifyToken = (req, res, next) => {
+  const token = req.cookies?.token;
+  if(!token) {
+    return res.status(401).send({ message: 'unauthoeized access' })
+  }
+  if(token) {
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+      if(err) {
+        console.log(err);
+        return res.status(401).send( { message: 'unathorized access'})
+      }
+      
+      req.decoded = decoded
+      console.log(decoded);
+      next()
+    })
+  }
+}
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production" ? true : false,
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+};
+
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    //await client.connect();
 
     const mealsCollection = client.db("uniBitesDB").collection("meals");
     const usersCollection = client.db("uniBitesDB").collection("users");
@@ -45,24 +82,10 @@ async function run() {
    
 
     //middlewares
-    const verifyToken = (req, res, next) => {
-      if (!req.headers.authorization) {
-        return res.status(401).send({ message: "unauthorized access" });
-      }
-      const token = req.headers.authorization.split(" ")[1];
-      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-        if (err) {
-          console.log("2nd");
-          console.log("server", err);
-          return res.status(401).send({ message: "unauthorized access" });
-        }
-        req.decoded = decoded;
-        next();
-      });
-    };
 
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
+      console.log("email", email);
       const query = { email: email };
       const user = await usersCollection.findOne(query);
       const isAdmin = user?.role === "admin";
@@ -72,13 +95,22 @@ async function run() {
       next();
     };
 
+
     //jwt related api
-    app.post("/jwt", async (req, res) => {
+       app.post('/jwt', async (req,res) => {
       const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "1hr",
-      });
-      res.send({ token });
+        expiresIn: '1d'
+      })
+      res.cookie('token', token, cookieOptions).send({ success: true})
+    })
+
+    //clear token on logout
+
+    app.post("/logout", async (req, res) => {
+      const user = req.body;
+      console.log("logging out user: ", user);
+      res.clearCookie("token", { ...cookieOptions, maxAge: 0 }).send({ success:  true });
     });
 
     //admin verification api
@@ -228,16 +260,22 @@ async function run() {
     app.get("/user/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
+      console.log('rr', req.decoded.email);
 
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ message: "forbidden access" });
-      }
       const result = await usersCollection.findOne(query);
       res.send(result);
     });
     //get all user
     app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
-      const result = await usersCollection.find().toArray();
+      let query = {};
+      const {email, name} = req.query;
+      if(email) {
+        query.email = {$regex: email, $options: 'i'};
+      }
+      if(name) {
+        query.name = {$regex: name, $options: 'i'};
+      }
+      const result = await usersCollection.find(query).toArray();
       res.send(result);
     });
 
@@ -444,7 +482,7 @@ async function run() {
     });
 
     //check if user has liked a meal
-    app.get("/liked/:mealId", verifyToken, async (req, res) => {
+    app.get("/liked/:mealId", async (req, res) => {
       const mealId = req.params.mealId;
       const email = req.query.email;
 
