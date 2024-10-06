@@ -552,7 +552,7 @@ async function run() {
     });
 
     //get review by meal id
-    app.get("/reviews/:mealId", verifyToken, async (req, res) => {
+    app.get("/reviews/:mealId", async (req, res) => {
       const mealId = req.params.mealId;
       const query = { mealId: mealId };
       const result = await reviewsCollection.find(query).toArray();
@@ -622,6 +622,57 @@ async function run() {
       res.send(result);
     });
 
+    //   try {
+    //     const usersCollection = client.db("uniBitesDB").collection("users");
+    //     const requestedMealsCollection = client.db("uniBitesDB").collection("requestedMeals");
+    
+    //     // Get the count of users and requested meals
+    //     const totalUsers = await usersCollection.countDocuments();
+    //     const totalRequestedMeals = await requestedMealsCollection.countDocuments();
+    
+    //     res.status(200).json({
+    //       totalUsers,
+    //       totalRequestedMeals,
+    //     });
+    //   } catch (err) {
+    //     console.error('Error fetching counts', err);
+    //     res.status(500).json({ message: 'Internal server error' });
+    //   }
+    // });
+
+
+    app.get('/stats', async (req, res) => {
+      try {
+        const usersCollection = client.db("uniBitesDB").collection("users");
+        const requestedMealsCollection = client.db("uniBitesDB").collection("requestedMeals");
+    
+        const totalUsers = await usersCollection.countDocuments();
+        const totalRequestedMeals = await requestedMealsCollection.countDocuments();
+    
+        const totalEarningsResult = await requestedMealsCollection.aggregate([
+          {
+            $group: {
+              _id: null, 
+              totalEarnings: { $sum: "$price" }
+            }
+          }
+        ]).toArray();
+    
+        const totalEarnings = totalEarningsResult.length > 0 ? totalEarningsResult[0].totalEarnings : 0;
+    
+        res.status(200).json({
+          success: true,
+          totalUsers,
+          totalRequestedMeals,
+          totalEarnings,
+        });
+      } catch (err) {
+        console.error('Error fetching stats:', err);
+        res.status(500).json({ message: 'Internal server error' });
+      }
+    });
+    
+    
     // await client.db("admin").command({ ping: 1 });
     // console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
